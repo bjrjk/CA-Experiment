@@ -1,0 +1,9 @@
+#!/bin/sh
+echo add
+sim-cache-run add > add.csv
+echo math
+sim-cache-run math > math.csv
+echo matrix
+sim-cache-run matrix > matrix.csv
+echo printf
+sim-cache-run printf > printf.csv

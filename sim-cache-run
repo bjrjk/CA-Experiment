@@ -1,0 +1,78 @@
+#!/usr/bin/env python
+import sys,os
+
+def check_cmdline():
+	if len(sys.argv) != 2:
+		print("sim-cache-run script by Jack Ren:")
+		print("Must one argument exactly!")
+		print("Command Line: " + sys.argv[0] + " [Program Name]")
+		sys.exit(1)
+
+def run_process(cmdline):
+	output = os.popen(cmdline)
+        return output.read()
+
+def parse_sim_data(content):
+	flag = False
+	dic = {}
+	for line in content.splitlines():
+		if line == 'sim: ** simulation statistics **':
+			flag = True
+			continue
+		if flag:
+			if line.strip() == '':
+				continue
+			line = line.strip()
+			lineData = line.split()
+			dic[lineData[0]] = lineData[1]
+	return dic
+
+def init():
+	check_cmdline()
+	run_process("sim-gcc %s -o %s 2>&1" % (sys.argv[1], sys.argv[1]))
+
+# Capacity (B), Bsize (B), Repl ('l','f','r')
+def run_single_test(program, capacity, bsize, assoc, repl):
+	ul2_config = "-cache:il2 none -cache:dl2 none" 
+	# L2 Cache: None 
+	ul1_config = ("-cache:il1 dl1 -cache:dl1 ul1:%d:%d:%d:%s") % (capacity/bsize/assoc, bsize, assoc, repl)
+	# Unified L1 Cache
+	result_txt = run_process("sim-cache %s %s %s 2>&1" % (ul1_config, ul2_config, program))
+	sim_data = parse_sim_data(result_txt)
+	return sim_data
+
+def run_test(program, output_config):
+	print("%s" % program)
+	table_head = "capacity,bsize,assoc,repl,"
+	for elem in output_config:
+		table_head += "%s," % elem
+	print(table_head)	
+
+	capacity_std = 32768 
+	bsize_std = 8 
+
+	capacity_coeff_arr = [1,2,4,8,64]
+	assoc_arr = [1,2,4,8,64]
+	bsize_coeff_arr = [1,2,4,8,64]
+	repl_arr = ['l','r']
+
+	for capacity_coeff in capacity_coeff_arr:
+		for assoc in assoc_arr:
+			for bsize_coeff in bsize_coeff_arr:
+				for repl in repl_arr:
+					capacity = capacity_std * capacity_coeff
+					bsize = bsize_std * bsize_coeff
+					sim_data = run_single_test(program, capacity, bsize, assoc, repl)
+					table_line = "%d,%d,%d,%s," % (capacity, bsize, assoc, repl)
+					for data_name in output_config:
+						table_line += "%s," % sim_data[data_name]
+					print(table_line)
+
+def main():
+	init()
+	output_config = ['ul1.accesses','ul1.hits','ul1.misses','ul1.replacements','ul1.miss_rate','ul1.repl_rate']
+	run_test(sys.argv[1], output_config)
+
+if __name__ == '__main__':
+	main()
+
